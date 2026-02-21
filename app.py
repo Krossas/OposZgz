@@ -7,7 +7,7 @@ Interfaz Streamlit para gestión de oposiciones C1/C2 Zaragoza
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from database import DatabaseManager
+from gestor_csv import GestorCSV
 from scraper import ScraperOposiciones
 from models import EstadoConvocatoria
 import logging
@@ -33,10 +33,10 @@ st.title("📋 Gestor de Oposiciones C1/C2")
 st.markdown("### Ayuntamiento de Zaragoza")
 
 # Inicializar sesión
-if 'db' not in st.session_state:
-    st.session_state.db = DatabaseManager()
+if 'gestor' not in st.session_state:
+    st.session_state.gestor = GestorCSV()
 
-db = st.session_state.db
+gestor = st.session_state.gestor
 
 # ============================================================================
 # SIDEBAR - CONTROLES PRINCIPALES
@@ -52,15 +52,13 @@ with st.sidebar:
                 convocatorias = scraper.scraping_completo()
                 scraper.close()
                 
-                # Guardar en BD (con upsert inteligente)
-                nuevas = 0
-                actualizadas = 0
+                # Guardar en CSV (con upsert inteligente)
                 for conv in convocatorias:
-                    db.guardar_convocatoria(conv)
-                    nuevas += 1
+                    gestor.guardar_convocatoria(conv)
                 
-                st.success(f"✓ {len(convocatorias)} convocatorias procesadas (nuevas + actualizadas)")
+                st.success(f"✓ {len(convocatorias)} convocatorias procesadas")
                 st.balloons()
+                st.rerun()
             except Exception as e:
                 st.error(f"Error en scraping: {str(e)}")
     
@@ -79,7 +77,7 @@ with st.sidebar:
                         tmp.write(uploaded_file.getbuffer())
                         tmp_path = tmp.name
                     
-                    insertas, actualizadas, ignoradas = db.importar_csv(tmp_path)
+                    insertas, actualizadas, ignoradas = gestor.importar_csv(tmp_path)
                     
                     st.success(f"✓ Importación completada")
                     col1, col2, col3 = st.columns(3)
@@ -91,7 +89,6 @@ with st.sidebar:
                     os.unlink(tmp_path)
                     
                     # Recargar datos en sesión
-                    st.session_state.refresh = True
                     st.rerun()
                     
                 except Exception as e:
@@ -122,10 +119,10 @@ with st.sidebar:
     
     # Información
     st.subheader("Información")
-    todas = db.obtener_todas()
+    todas = gestor.obtener_todas()
     st.metric(label="Total en BD", value=len(todas))
     
-    abiertas = db.obtener_abiertas()
+    abiertas = gestor.obtener_abiertas()
     st.metric(label="Convocatorias Abiertas", value=len(abiertas))
     
     st.divider()
@@ -140,7 +137,7 @@ with st.sidebar:
 # ============================================================================
 
 # Obtener datos
-todas = db.obtener_todas()
+todas = gestor.obtener_todas()
 
 # Filtrar
 convocatorias_filtradas = [
